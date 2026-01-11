@@ -13,6 +13,7 @@ final class DpiViewModel: ObservableObject {
             }
         }
     }
+
     @Published var dpiChoices: [Int] = []
     @Published var dpiIndex: Double = 0
     @Published var status: String = ""
@@ -96,16 +97,16 @@ final class DpiViewModel: ObservableObject {
             }
 
             switch result {
-            case .openError(let result):
-                self.resetDpiState(message: self.openErrorMessage(result))
+            case let .openError(result):
+                resetDpiState(message: openErrorMessage(result))
             case .noFeature:
-                self.resetDpiState(message: "DPI feature not found")
+                resetDpiState(message: "DPI feature not found")
             case .cancelled:
                 return
-            case .success(let feature, let list, let current):
-                self.activeDevice = device
-                self.activeFeature = feature
-                self.applyDpiList(list, current: current)
+            case let .success(feature, list, current):
+                activeDevice = device
+                activeFeature = feature
+                applyDpiList(list, current: current)
             }
         }
     }
@@ -121,7 +122,7 @@ final class DpiViewModel: ObservableObject {
         commitTask = Task { [weak self] in
             guard let self else { return }
             guard let device, let feature else {
-                self.status = "No active device"
+                status = "No active device"
                 return
             }
 
@@ -129,16 +130,16 @@ final class DpiViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
 
             if result.success {
-                self.status = "DPI updated"
+                status = "DPI updated"
             } else {
-                self.status = "DPI update failed"
+                status = "DPI update failed"
             }
 
-            if let current = result.current, let index = self.dpiChoices.firstIndex(of: current) {
-                self.dpiIndex = Double(index)
+            if let current = result.current, let index = dpiChoices.firstIndex(of: current) {
+                dpiIndex = Double(index)
             }
             if let current = result.current {
-                self.persistLastDpi(current)
+                persistLastDpi(current)
             }
         }
     }
@@ -162,7 +163,8 @@ final class DpiViewModel: ObservableObject {
 
         status = ""
         if previousSelection == selectedDeviceID,
-           activeDevice == nil || activeDevice?.id != selectedDeviceID {
+           activeDevice == nil || activeDevice?.id != selectedDeviceID
+        {
             reloadSelection()
         }
     }
@@ -204,11 +206,11 @@ final class DpiViewModel: ObservableObject {
     private func openErrorMessage(_ result: IOReturn) -> String {
         switch result {
         case kIOReturnNotPermitted:
-            return "Input Monitoring permission required"
+            "Input Monitoring permission required"
         case kIOReturnExclusiveAccess:
-            return "Device is in use by another app"
+            "Device is in use by another app"
         default:
-            return "Failed to open device (IOReturn \(result))"
+            "Failed to open device (IOReturn \(result))"
         }
     }
 
@@ -221,7 +223,7 @@ final class DpiViewModel: ObservableObject {
     }
 
     private static func loadSelectedDeviceID(from defaults: UserDefaults) -> UInt64? {
-        if let value = defaults.string(forKey: Self.selectedDeviceKey), let id = UInt64(value) {
+        if let value = defaults.string(forKey: selectedDeviceKey), let id = UInt64(value) {
             return id
         }
         if let number = defaults.object(forKey: Self.selectedDeviceKey) as? NSNumber {
@@ -242,7 +244,6 @@ final class DpiViewModel: ObservableObject {
         guard defaults.object(forKey: Self.lastDpiKey) != nil else { return nil }
         return defaults.integer(forKey: Self.lastDpiKey)
     }
-
 }
 
 private enum SelectionResult: Sendable {

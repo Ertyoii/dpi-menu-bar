@@ -4,20 +4,20 @@ import IOKit.hid
 final class HIDPPManager {
     private let manager: IOHIDManager
 
-    @MainActor var onDevicesChanged: (([HIDPPDevice]) -> Void)?
+    var onDevicesChanged: (([HIDPPDevice]) -> Void)?
 
     init() {
         manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
         let mouseMatch: [String: Any] = [
-            kIOHIDVendorIDKey as String: 0x046d,
+            kIOHIDVendorIDKey as String: 0x046D,
             kIOHIDPrimaryUsagePageKey as String: kHIDPage_GenericDesktop,
-            kIOHIDPrimaryUsageKey as String: kHIDUsage_GD_Mouse
+            kIOHIDPrimaryUsageKey as String: kHIDUsage_GD_Mouse,
         ]
         let pointerMatch: [String: Any] = [
-            kIOHIDVendorIDKey as String: 0x046d,
+            kIOHIDVendorIDKey as String: 0x046D,
             kIOHIDPrimaryUsagePageKey as String: kHIDPage_GenericDesktop,
-            kIOHIDPrimaryUsageKey as String: kHIDUsage_GD_Pointer
+            kIOHIDPrimaryUsageKey as String: kHIDUsage_GD_Pointer,
         ]
 
         IOHIDManagerSetDeviceMatchingMultiple(manager, [mouseMatch, pointerMatch] as CFArray)
@@ -39,9 +39,8 @@ final class HIDPPManager {
 
     private func notifyDevicesChanged() {
         let devices = snapshotDevices()
-        Task { @MainActor [weak self] in
-            self?.onDevicesChanged?(devices)
-        }
+        assert(Thread.isMainThread)
+        onDevicesChanged?(devices)
     }
 
     private func snapshotDevices() -> [HIDPPDevice] {

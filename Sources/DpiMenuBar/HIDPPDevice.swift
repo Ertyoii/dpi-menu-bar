@@ -44,24 +44,24 @@ final class HIDPPDevice: Identifiable {
 
     init(device: IOHIDDevice) {
         self.device = device
-        self.product = device.stringProperty(kIOHIDProductKey) ?? "Logitech Mouse"
-        self.manufacturer = device.stringProperty(kIOHIDManufacturerKey) ?? ""
-        self.serialNumber = device.stringProperty(kIOHIDSerialNumberKey) ?? ""
-        self.transport = device.stringProperty(kIOHIDTransportKey) ?? ""
-        self.vendorID = device.intProperty(kIOHIDVendorIDKey) ?? 0
-        self.productID = device.intProperty(kIOHIDProductIDKey) ?? 0
-        self.maxInputReportSize = device.intProperty(kIOHIDMaxInputReportSizeKey) ?? 0
-        self.maxOutputReportSize = device.intProperty(kIOHIDMaxOutputReportSizeKey) ?? 0
+        product = device.stringProperty(kIOHIDProductKey) ?? "Logitech Mouse"
+        manufacturer = device.stringProperty(kIOHIDManufacturerKey) ?? ""
+        serialNumber = device.stringProperty(kIOHIDSerialNumberKey) ?? ""
+        transport = device.stringProperty(kIOHIDTransportKey) ?? ""
+        vendorID = device.intProperty(kIOHIDVendorIDKey) ?? 0
+        productID = device.intProperty(kIOHIDProductIDKey) ?? 0
+        maxInputReportSize = device.intProperty(kIOHIDMaxInputReportSizeKey) ?? 0
+        maxOutputReportSize = device.intProperty(kIOHIDMaxOutputReportSizeKey) ?? 0
         if let registryID = device.registryID() {
-            self.id = registryID
+            id = registryID
         } else {
-            self.id = UInt64(bitPattern: Int64(ObjectIdentifier(device).hashValue))
+            id = UInt64(bitPattern: Int64(ObjectIdentifier(device).hashValue))
         }
 
         let preferredSize = max(64, maxInputReportSize)
-        self.inputBufferSize = preferredSize
-        self.inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: preferredSize)
-        self.inputBuffer.initialize(repeating: 0, count: preferredSize)
+        inputBufferSize = preferredSize
+        inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: preferredSize)
+        inputBuffer.initialize(repeating: 0, count: preferredSize)
     }
 
     deinit {
@@ -103,11 +103,10 @@ final class HIDPPDevice: Identifiable {
         if let index = await featureIndex(0x2202) {
             DebugLog.log("Found EXTENDED_ADJUSTABLE_DPI feature index \(String(format: "0x%02X", index))")
             let caps = await featureRequest(featureIndex: index, function: 0x10, params: [0x00])
-            let flags: UInt8
-            if let caps, caps.count > 2 {
-                flags = caps[2]
+            let flags: UInt8 = if let caps, caps.count > 2 {
+                caps[2]
             } else {
-                flags = 0
+                0
             }
             let hasY = (flags & 0x01) != 0
             let hasLod = (flags & 0x02) != 0
@@ -124,25 +123,25 @@ final class HIDPPDevice: Identifiable {
 
     func fetchDpiList(feature: DpiFeature) async -> [Int] {
         switch feature {
-        case .adjustable(let index):
+        case let .adjustable(index):
             let bytes = await collectDpiBytes(featureIndex: index, function: 0x10, ignoreBytes: 1, direction: 0)
-            return parseDpiList(bytes)
-        case .extended(let index, _, _):
+            return DpiListParser.parse(bytes)
+        case let .extended(index, _, _):
             let bytes = await collectDpiBytes(featureIndex: index, function: 0x20, ignoreBytes: 3, direction: 0)
-            return parseDpiList(bytes)
+            return DpiListParser.parse(bytes)
         }
     }
 
     func readDpi(feature: DpiFeature) async -> Int? {
         switch feature {
-        case .adjustable(let index):
+        case let .adjustable(index):
             guard let reply = await featureRequest(featureIndex: index, function: 0x20, params: []), reply.count >= 5 else {
                 return nil
             }
             let current = (Int(reply[1]) << 8) | Int(reply[2])
             let fallback = (Int(reply[3]) << 8) | Int(reply[4])
             return current == 0 ? fallback : current
-        case .extended(let index, _, _):
+        case let .extended(index, _, _):
             guard let reply = await featureRequest(featureIndex: index, function: 0x50, params: []), reply.count >= 5 else {
                 return nil
             }
@@ -156,10 +155,10 @@ final class HIDPPDevice: Identifiable {
         let hi = UInt8((dpi >> 8) & 0xFF)
         let lo = UInt8(dpi & 0xFF)
         switch feature {
-        case .adjustable(let index):
+        case let .adjustable(index):
             let reply = await featureRequest(featureIndex: index, function: 0x30, params: [0x00, hi, lo])
             return reply != nil
-        case .extended(let index, _, _):
+        case let .extended(index, _, _):
             let reply = await featureRequest(featureIndex: index, function: 0x60, params: [0x00, 0x00, hi, lo])
             return reply != nil
         }
@@ -183,7 +182,7 @@ final class HIDPPDevice: Identifiable {
 
     private func collectDpiBytes(featureIndex: UInt8, function: UInt8, ignoreBytes: Int, direction: UInt8) async -> [UInt8] {
         var dpiBytes: [UInt8] = []
-        for i in 0..<256 {
+        for i in 0 ..< 256 {
             guard let reply = await featureRequest(
                 featureIndex: featureIndex,
                 function: function,
@@ -199,36 +198,6 @@ final class HIDPPDevice: Identifiable {
             }
         }
         return dpiBytes
-    }
-
-    private func parseDpiList(_ bytes: [UInt8]) -> [Int] {
-        var list: [Int] = []
-        var i = 0
-        while i + 1 < bytes.count {
-            let value = (Int(bytes[i]) << 8) | Int(bytes[i + 1])
-            if value == 0 {
-                break
-            }
-            if (value >> 13) == 0b111 {
-                let step = value & 0x1FFF
-                if i + 3 >= bytes.count {
-                    break
-                }
-                let last = (Int(bytes[i + 2]) << 8) | Int(bytes[i + 3])
-                if let previous = list.last {
-                    var v = previous + step
-                    while v <= last {
-                        list.append(v)
-                        v += step
-                    }
-                }
-                i += 4
-            } else {
-                list.append(value)
-                i += 2
-            }
-        }
-        return list
     }
 
     private func sendRequest(_ requestID: UInt16, params: [UInt8], timeout: TimeInterval = 1.5) async -> [UInt8]? {
@@ -295,7 +264,7 @@ final class HIDPPDevice: Identifiable {
         data[1] = UInt8(requestIDWithSW & 0xFF)
         let copyCount = min(params.count, max(0, dataLength - 2))
         if copyCount > 0 {
-            for idx in 0..<copyCount {
+            for idx in 0 ..< copyCount {
                 data[2 + idx] = params[idx]
             }
         }
@@ -367,7 +336,7 @@ final class HIDPPDevice: Identifiable {
         return swID
     }
 
-    private static let handleInputReport: IOHIDReportCallback = { context, result, sender, type, reportID, report, reportLength in
+    private static let handleInputReport: IOHIDReportCallback = { context, result, _, _, reportID, report, reportLength in
         guard result == kIOReturnSuccess else { return }
         guard let context else { return }
         let device = Unmanaged<HIDPPDevice>.fromOpaque(context).takeUnretainedValue()
@@ -476,7 +445,7 @@ final class HIDPPDevice: Identifiable {
         }
     }
 
-    private func onMainSync(_ block: () -> Void) {
+    private func onMainSync(_ block: @Sendable () -> Void) {
         if Thread.isMainThread {
             block()
         } else {

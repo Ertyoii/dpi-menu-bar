@@ -11,7 +11,7 @@ enum DebugLog {
     }
 }
 
-extension Array where Element == UInt8 {
+extension [UInt8] {
     func hexString() -> String {
         map { String(format: "%02X", $0) }.joined(separator: " ")
     }

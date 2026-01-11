@@ -12,7 +12,7 @@ Menu bar app for inspecting and setting Logitech mouse DPI via HID++ over USB or
 ## Requirements
 
 - macOS 13 or later
-- Swift 5.9+ (Xcode 15+)
+- Swift 6 (Xcode 16+)
 
 ## Build
 

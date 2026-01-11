@@ -43,7 +43,7 @@ struct ContentView: View {
                     Text("DPI: \(model.selectedDpi ?? 0)")
                     Slider(
                         value: $model.dpiIndex,
-                        in: 0...Double(max(model.dpiChoices.count - 1, 0)),
+                        in: 0 ... Double(max(model.dpiChoices.count - 1, 0)),
                         step: 1
                     ) { editing in
                         if !editing {
