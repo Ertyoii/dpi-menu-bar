@@ -54,3 +54,8 @@ If the device becomes locked (exclusive access), quit the app and reconnect the 
 - HID++ communication is implemented in `Sources/DpiMenuBar/HIDPPDevice.swift`.
 - Device discovery is handled by `Sources/DpiMenuBar/HIDPPManager.swift`.
 - UI lives in `Sources/DpiMenuBar/DpiMenuBarApp.swift`.
+
+## HID++ Notes
+
+See `docs/HIDPP.md` for details on the HID++ requests, report formats, and
+feature IDs used by this project.
